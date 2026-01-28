@@ -1,0 +1,197 @@
+# Langfuse Kubernetes Helm Values - Minimal 5GB RAM, 3 Core Setup
+# Optimized for small local Kubernetes clusters
+# NOTE: This is a resource-constrained configuration. Do not use for production workloads.
+
+# Langfuse Core Configuration
+langfuse:
+  salt:
+    secretKeyRef:
+      name: langfuse-app-secret
+      key: salt
+  nextauth:
+    secret:
+      secretKeyRef:
+        name: langfuse-app-secret
+        key: nextauth-secret
+  encryptionKey:
+    secretKeyRef:
+      name: langfuse-app-secret
+      key: encryption-key
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/langfuse/langfuse
+  tag: "latest"
+
+resources:
+  limits:
+    memory: "1Gi"
+    cpu: "1"
+  requests:
+    memory: "512Mi"
+    cpu: "500m"
+
+worker:
+  replicaCount: 1
+  resources:
+    limits:
+      memory: "1Gi"
+      cpu: "1"
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+
+# PostgreSQL Configuration
+postgresql:
+  enabled: true
+  deploy: true
+  auth:
+    username: langfuse
+    database: langfuse
+    existingSecret: langfuse-postgres-secret
+    secretKeys:
+      userPasswordKey: postgres-password
+  primary:
+    resources:
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClassName: ""
+
+# Redis Configuration
+redis:
+  enabled: true
+  deploy: true
+  auth:
+    enabled: true
+    existingSecret: langfuse-redis-secret
+    existingSecretPasswordKey: redis-password
+  master:
+    resources:
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+  persistence:
+    enabled: true
+    size: 2Gi
+    storageClassName: ""
+
+# ClickHouse Configuration
+clickhouse:
+  enabled: true
+  deploy: true
+  shards: 1
+  replicaCount: 1
+  resources:
+    limits:
+      memory: "1Gi"
+      cpu: "1"
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+  auth:
+    username: default
+    existingSecret: langfuse-clickhouse-secret
+    existingSecretKey: clickhouse-password
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClassName: ""
+
+# MinIO (S3-compatible) Configuration
+s3:
+  enabled: true
+  deploy: true
+  auth:
+    existingSecret: langfuse-minio-secret
+    rootUserSecretKey: root-user
+    rootPasswordSecretKey: root-password
+  bucket: langfuse
+  resources:
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClassName: ""
+
+# Langfuse Environment Variables
+# Note: Most configurations are handled automatically by the Helm chart
+# based on postgres, redis, clickhouse, and s3 settings above
+additionalEnv:
+  # Application Configuration
+  - name: NEXTAUTH_URL
+    value: "http://localhost:3000"
+  - name: LANGFUSE_LOG_LEVEL
+    value: "info"
+  - name: CLICKHOUSE_CLUSTER_ENABLED
+    value: "false"
+
+# Service Configuration
+service:
+  type: ClusterIP
+  port: 3000
+  targetPort: 3000
+
+# Ingress Configuration (optional)
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: localhost
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Probe Configuration - relaxed for resource-constrained environment
+livenessProbe:
+  httpGet:
+    path: /api/health
+    port: 3000
+  initialDelaySeconds: 60
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /api/health
+    port: 3000
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: false
+
+# Network Policy
+networkPolicy:
+  enabled: false
+
+# Resource Constraints Summary
+# Total maximum allocation:
+# - Langfuse Web: 1Gi RAM + 1 CPU
+# - Langfuse Worker: 1Gi RAM + 1 CPU
+# - PostgreSQL: 512Mi RAM + 500m CPU
+# - Redis: 512Mi RAM + 500m CPU
+# - ClickHouse: 1Gi RAM + 1 CPU
+# - MinIO: 512Mi RAM + 500m CPU
+# TOTAL: ~5Gi RAM + ~5 CPUs (requested), but will stay under 5Gi with proper configuration
