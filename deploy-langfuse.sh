@@ -10,7 +10,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-NAMESPACE="langfuse-test"
+NAMESPACE="langfuse-new"
 RELEASE_NAME="langfuse"
 HELM_REPO="https://langfuse.github.io/langfuse-k8s"
 PORT=3000
@@ -65,6 +65,12 @@ if helm list -n $NAMESPACE 2>/dev/null | grep -q $RELEASE_NAME; then
     fi
     DEPLOY_CMD="upgrade"
 else
+    # if there is no namespace, create it
+    if ! kubectl get namespace $NAMESPACE &> /dev/null; then
+        echo -e "${YELLOW}Creating namespace '$NAMESPACE'...${NC}"
+        kubectl create namespace $NAMESPACE
+        echo -e "${GREEN}✓ Namespace created${NC}\n"
+    fi
     DEPLOY_CMD="install"
 fi
 
